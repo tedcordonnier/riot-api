@@ -2,10 +2,23 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"net/http"
+	"text/template"
 )
 
+type RankedInfo struct {
+	Account string
+	Tier    string
+	Rank    string
+	Wins    int
+	Losses  int
+}
+
+var tmpl = template.Must(template.ParseFiles("index.html"))
+
 // Riot API key and region
-const apiKey = "RGAPI-de86bf29-d19c-42c5-b2e0-a6c2d05b8595"
+const apiKey = "RGAPI-a4a03f5d-d354-4ac3-878b-8a9b23fcfe5d"
 
 func main() {
 
@@ -16,10 +29,31 @@ func main() {
 	puuid := accountInfo.Puuid
 	fmt.Println(puuid)
 
-	urlMATCH := fmt.Sprintf("https://americas.api.riotgames.com/lol/match/v5/matches/by-puuid/%s/ids?start=0&count=20&api_key=%s", puuid, apiKey)
-	matches := MATCH(urlMATCH)
+	urlSUMMONER := fmt.Sprintf("https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/%s?api_key=%s", puuid, apiKey)
+	summonerInfo := SUMMONER(urlSUMMONER)
+	summonerID := summonerInfo.ID
+	fmt.Println(summonerID)
 
-	printMatches(matches)
+	urlLEAGUE := fmt.Sprintf("https://na1.api.riotgames.com/lol/league/v4/entries/by-summoner/%s?api_key=%s", summonerID, apiKey)
+	leagueInfo := LEAGUE(urlLEAGUE)
+	account, tier, rank, wins, losses := account, leagueInfo.Tier, leagueInfo.Rank, leagueInfo.Wins, leagueInfo.Losses
+	fmt.Println(tier, rank, wins, losses)
+
+	rankedInfo := RankedInfo{
+		Account: account,
+		Tier:    tier,
+		Rank:    rank,
+		Wins:    wins,
+		Losses:  losses,
+	}
+
+	http.HandleFunc("/leagues", func(w http.ResponseWriter, r *http.Request) {
+		leaguesHandler(w, r, rankedInfo)
+	})
+
+	fmt.Println("Server is listening on port 8080...")
+	log.Fatal(http.ListenAndServe(":8080", nil))
+	select {} // This will keep the program running indefinitely
 }
 
 func getUserInput() string {
@@ -29,8 +63,7 @@ func getUserInput() string {
 	return fmt.Sprintf("%s/%s", summonerName, summonerTag)
 }
 
-func printMatches(matches []string) {
-	for _, match := range matches {
-		fmt.Println(match)
-	}
+func leaguesHandler(w http.ResponseWriter, r *http.Request, rankedInfo RankedInfo) {
+	tmpl := template.Must(template.ParseFiles("index.html"))
+	tmpl.Execute(w, rankedInfo)
 }
